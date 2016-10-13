@@ -1,6 +1,7 @@
 const express = require("express")
 const Cookies = require('cookies')
 const bodyParser = require("body-parser")
+const bcrypt = require("bcrypt")
 const KeyGrip = require("keygrip")
 const keys = new KeyGrip(['im a newer secret', 'i like turtle'], 'sha256')
 const app = express()
@@ -41,15 +42,18 @@ app.get("/login", (req, res) => {
 app.post("/login", (req, res) => {
   const username = req.body.username
   const password = req.body.password
-  // check that it matches the database
+  // Find user by username
   const user = data.users.find((user) => { return user.username === username })
-  if(user.password === password) {
-    // set a cookie to keep track of the user
-    req.cookies.set("current_user", user.username, {signed: true})
-    res.redirect("/treasure")
-  } else {
-    res.redirect("/login")
-  }
+  // check the password
+  bcrypt.compare(password, user.password, (err, matched) => {
+    if(matched) {
+      // set a cookie to keep track of the user
+      req.cookies.set("current_user", user.username, {signed: true})
+      res.redirect("/treasure")
+    } else {
+      res.redirect("/login")
+    }
+  })
 })
 
 app.get("/treasure", (req, res) => {
@@ -62,9 +66,17 @@ app.get("/signup", (req, res) => {
 })
 
 app.post("/signup", (req, res) => {
-  data.users.push({username: req.body.username, password: req.body.password})
-  console.log("All users are: ", data.users);
-  res.redirect("/")
+  bcrypt.hash(req.body.password, 10, (err, hash) => {
+    if(err) {
+      res.send("There was an error creating your account.")
+      return
+    }
+    // add user to database
+    data.users.push({username: req.body.username, password: hash})
+    console.log("All users are: ", data.users);
+    res.redirect("/")
+  })
+  // don't put code here
 })
 
 app.get("/logout", (req, res) => {
