@@ -1,20 +1,19 @@
 const express = require("express")
-const Cookies = require('cookies')
 const bodyParser = require("body-parser")
 const bcrypt = require("bcrypt")
-const KeyGrip = require("keygrip")
-const keys = new KeyGrip(['im a newer secret', 'i like turtle'], 'sha256')
 const app = express()
 const PORT = process.env.PORT || 8000; // default port 8000
-
-// Express middleware that parses cookies
-app.use((req, res, next) => {
-  req.cookies = new Cookies( req, res, { "keys": keys } )
-  next()
-})
+const cookieParser = require("cookie-parser")
 
 // parse application/x-www-form-urlencoded form data into req.body
 app.use(bodyParser.urlencoded({ extended: false }))
+
+// set up cookie parser middleware.
+//   access cookies with req.cookies or req.signedCookies if the cookie was signed.
+//   set cookies with res.cooke("cookieName")
+// cookieParser takes in the secret key as an argument. It uses this key to
+// sign cookies.
+app.use(cookieParser('super_secret_key'))
 
 app.set("view engine", "ejs")
 
@@ -27,7 +26,7 @@ const data = {
 app.get("/", (req, res) => {
   // if user logged in show treasure,
   // else show login
-  const current_user = req.cookies.get("current_user")
+  const current_user = req.signedCookies.current_user
   if(current_user) {
     res.redirect("/treasure")
   } else {
@@ -48,17 +47,12 @@ app.post("/login", (req, res) => {
   bcrypt.compare(password, user.password, (err, matched) => {
     if(matched) {
       // set a cookie to keep track of the user
-      req.cookies.set("current_user", user.username, {signed: true})
+      res.cookie("current_user", user.username, {signed: true})
       res.redirect("/treasure")
     } else {
       res.redirect("/login")
     }
   })
-})
-
-app.get("/treasure", (req, res) => {
-  const current_user = req.cookies.get("current_user")
-  res.render("treasure", {current_user})
 })
 
 app.get("/signup", (req, res) => {
@@ -80,10 +74,15 @@ app.post("/signup", (req, res) => {
 })
 
 app.get("/logout", (req, res) => {
-  req.cookies.set("current_user", "")
+  res.cookie("current_user", "", {signed: true})
   res.redirect("/login")
 })
 
+
+app.get("/treasure", (req, res) => {
+  const current_user = req.signedCookies.current_user
+  res.render("treasure", {current_user})
+})
 
 app.listen(PORT, () => {
   console.log(`Example app listening on port ${PORT}!`);
